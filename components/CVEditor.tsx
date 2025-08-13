@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CVEditorProps, CVTransformedData } from '@/types/cv'
+import { CVEditorProps, CVTransformedData, ContactInfo } from '@/types/cv'
 import { Plus, X, Save, Edit3 } from 'lucide-react'
 
 export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
@@ -24,9 +24,11 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
         if (parent === 'personalDetails' && child === 'contactInfo') {
           // Handle nested contact info
           const [contactField] = field.split('.').slice(2)
-          updatedData[parent][child][contactField] = tempValue
+          if (contactField && contactField in updatedData.personalDetails.contactInfo) {
+            (updatedData.personalDetails.contactInfo as any)[contactField] = tempValue
+          }
         } else {
-          updatedData[parent][child] = tempValue
+          (updatedData as any)[parent][child] = tempValue
         }
       }
     } else {
@@ -44,8 +46,8 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
   const handleArrayFieldEdit = (field: string, index: number, subField?: string) => {
     const key = subField ? `${field}.${index}.${subField}` : `${field}.${index}`
     const value = subField 
-      ? editingData[field][index][subField]
-      : editingData[field][index]
+      ? (editingData as any)[field][index][subField]
+      : (editingData as any)[field][index]
     
     setEditingField(key)
     setTempValue(Array.isArray(value) ? value.join('\n') : value)
@@ -55,9 +57,9 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
     const updatedData = { ...editingData }
     
     if (subField) {
-      updatedData[field][index][subField] = tempValue
+      (updatedData as any)[field][index][subField] = tempValue
     } else {
-      updatedData[field][index] = tempValue.split('\n').filter(item => item.trim())
+      (updatedData as any)[field][index] = tempValue.split('\n').filter(item => item.trim())
     }
 
     setEditingData(updatedData)
@@ -69,14 +71,14 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
 
   const addArrayItem = (field: string, template: any) => {
     const updatedData = { ...editingData }
-    updatedData[field].push(template)
+    ;(updatedData as any)[field].push(template)
     setEditingData(updatedData)
     onUpdate(updatedData)
   }
 
   const removeArrayItem = (field: string, index: number) => {
     const updatedData = { ...editingData }
-    updatedData[field].splice(index, 1)
+    ;(updatedData as any)[field].splice(index, 1)
     setEditingData(updatedData)
     onUpdate(updatedData)
   }
@@ -199,7 +201,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
                           onClick={() => handleArrayFieldEdit(field, index, key)}
                           className="ml-2 p-1 text-gray-500 hover:text-blue-600 transition-colors"
                         >
-                          <Edit3 className="w-3 h-3" />
+                          <Edit3 className="w-4 h-4" />
                         </button>
                       </div>
                     )}
@@ -236,7 +238,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
                           onClick={() => handleArrayFieldEdit(field, index, key)}
                           className="ml-2 p-1 text-gray-500 hover:text-blue-600 transition-colors"
                         >
-                          <Edit3 className="w-3 h-3" />
+                          <Edit3 className="w-4 h-4" />
                         </button>
                       </div>
                     )}
