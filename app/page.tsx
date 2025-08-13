@@ -205,17 +205,17 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-secondary-50">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-secondary-200">
+      <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-primary-700">AI CV Transformer</h1>
-              <p className="text-secondary-600 mt-1">Transform raw CVs into professional documents</p>
+              <h1 className="text-3xl font-bold text-blue-700">AI CV Transformer</h1>
+              <p className="text-gray-600 mt-1">Transform raw CVs into professional documents</p>
             </div>
             <div className="flex items-center space-x-4">
-              <div className="text-sm text-secondary-500">
+              <div className="text-sm text-gray-500">
                 Session: {sessionId.slice(-8)}
               </div>
             </div>
@@ -229,7 +229,7 @@ export default function Home() {
           <div className="lg:col-span-1 space-y-6">
             {/* File Upload */}
             <div className="card">
-              <h2 className="text-xl font-semibold text-secondary-800 mb-4">Upload CV</h2>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Upload CV</h2>
               <FileUpload 
                 onFileUpload={handleFileUpload}
                 isProcessing={isProcessing}
@@ -239,10 +239,10 @@ export default function Home() {
 
             {/* CV List */}
             <div className="card">
-              <h2 className="text-xl font-semibold text-secondary-800 mb-4">Your CVs</h2>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">Your CVs</h2>
               {cvs.length === 0 ? (
-                <div className="text-center py-8 text-secondary-500">
-                  <FileText className="w-12 h-12 mx-auto mb-3 text-secondary-300" />
+                <div className="text-center py-8 text-gray-500">
+                  <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
                   <p>No CVs uploaded yet</p>
                   <p className="text-sm">Upload a CV to get started</p>
                 </div>
@@ -253,14 +253,14 @@ export default function Home() {
                       key={cv._id}
                       className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                         selectedCV?._id === cv._id
-                          ? 'border-primary-500 bg-primary-50'
-                          : 'border-secondary-200 hover:border-secondary-300'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
                       }`}
                       onClick={() => handleCVSelect(cv)}
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-secondary-900 truncate">
+                          <p className="font-medium text-gray-900 truncate">
                             {cv.originalFileName}
                           </p>
                           <div className="flex items-center mt-1">
@@ -270,7 +270,7 @@ export default function Home() {
                             </span>
                           </div>
                           {cv.transformedData?.header?.name && (
-                            <p className="text-sm text-secondary-600 mt-1">
+                            <p className="text-sm text-gray-600 mt-1">
                               {cv.transformedData.header.name}
                             </p>
                           )}
@@ -283,7 +283,7 @@ export default function Home() {
                                   e.stopPropagation()
                                   handleExport(cv._id, 'pdf')
                                 }}
-                                className="p-1 text-secondary-500 hover:text-primary-600 transition-colors"
+                                className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
                                 title="Export PDF"
                               >
                                 <Download className="w-4 h-4" />
@@ -293,7 +293,7 @@ export default function Home() {
                                   e.stopPropagation()
                                   setSelectedCV(cv)
                                 }}
-                                className="p-1 text-secondary-500 hover:text-primary-600 transition-colors"
+                                className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
                                 title="Edit CV"
                               >
                                 <Edit3 className="w-4 h-4" />
@@ -305,7 +305,7 @@ export default function Home() {
                               e.stopPropagation()
                               handleCVDelete(cv._id)
                             }}
-                            className="p-1 text-secondary-500 hover:text-red-600 transition-colors"
+                            className="p-1 text-gray-500 hover:text-red-600 transition-colors"
                             title="Delete CV"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -326,7 +326,7 @@ export default function Home() {
                 {/* CV Header */}
                 <div className="card">
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-semibold text-secondary-800">
+                    <h2 className="text-xl font-semibold text-gray-800">
                       {selectedCV.transformedData?.header?.name || selectedCV.originalFileName}
                     </h2>
                     <div className="flex items-center space-x-3">
@@ -351,25 +351,25 @@ export default function Home() {
                   
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="font-medium text-secondary-700">Status:</span>
+                      <span className="font-medium text-gray-700">Status:</span>
                       <span className={`ml-2 status-badge ${getStatusClass(selectedCV.status)}`}>
                         {selectedCV.status}
                       </span>
                     </div>
                     <div>
-                      <span className="font-medium text-secondary-700">File Type:</span>
-                      <span className="ml-2 text-secondary-600">{selectedCV.originalFileType.toUpperCase()}</span>
+                      <span className="font-medium text-gray-700">File Type:</span>
+                      <span className="ml-2 text-gray-600">{selectedCV.originalFileType.toUpperCase()}</span>
                     </div>
                     <div>
-                      <span className="font-medium text-secondary-700">Uploaded:</span>
-                      <span className="ml-2 text-secondary-600">
+                      <span className="font-medium text-gray-700">Uploaded:</span>
+                      <span className="ml-2 text-gray-600">
                         {new Date(selectedCV.uploadedAt).toLocaleDateString()}
                       </span>
                     </div>
                     {selectedCV.processedAt && (
                       <div>
-                        <span className="font-medium text-secondary-700">Processed:</span>
-                        <span className="ml-2 text-secondary-600">
+                        <span className="font-medium text-gray-700">Processed:</span>
+                        <span className="ml-2 text-gray-600">
                           {new Date(selectedCV.processedAt).toLocaleDateString()}
                         </span>
                       </div>
@@ -382,13 +382,13 @@ export default function Home() {
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {/* Preview */}
                     <div className="card">
-                      <h3 className="text-lg font-semibold text-secondary-800 mb-4">Preview</h3>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-4">Preview</h3>
                       <CVPreview cv={selectedCV} />
                     </div>
                     
                     {/* Editor */}
                     <div className="card">
-                      <h3 className="text-lg font-semibold text-secondary-800 mb-4">Edit</h3>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-4">Edit</h3>
                       <CVEditor 
                         cv={selectedCV}
                         onUpdate={handleCVUpdate}
@@ -401,8 +401,8 @@ export default function Home() {
                       {selectedCV.status === 'processing' ? (
                         <>
                           <div className="spinner w-8 h-8 mx-auto mb-4"></div>
-                          <h3 className="text-lg font-medium text-secondary-800 mb-2">Processing CV...</h3>
-                          <p className="text-secondary-600">This may take a few minutes. Please wait.</p>
+                          <h3 className="text-lg font-medium text-gray-800 mb-2">Processing CV...</h3>
+                          <p className="text-gray-600">This may take a few minutes. Please wait.</p>
                         </>
                       ) : selectedCV.status === 'error' ? (
                         <>
@@ -424,9 +424,9 @@ export default function Home() {
             ) : (
               <div className="card">
                 <div className="text-center py-12">
-                  <FileText className="w-16 h-16 mx-auto mb-4 text-secondary-300" />
-                  <h3 className="text-xl font-medium text-secondary-800 mb-2">No CV Selected</h3>
-                  <p className="text-secondary-600">Select a CV from the list to view and edit it.</p>
+                  <FileText className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-xl font-medium text-gray-800 mb-2">No CV Selected</h3>
+                  <p className="text-gray-600">Select a CV from the list to view and edit it.</p>
                 </div>
               </div>
             )}

@@ -83,7 +83,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
 
   const renderEditableField = (label: string, field: string, value: string, multiline = false) => (
     <div className="mb-4">
-      <label className="block text-sm font-medium text-secondary-700 mb-2">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
         {label}
       </label>
       {editingField === field ? (
@@ -117,13 +117,13 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
           </button>
         </div>
       ) : (
-        <div className="flex items-center justify-between p-3 bg-secondary-50 rounded-lg border border-secondary-200">
-          <span className="text-secondary-700 flex-1">
-            {value || <span className="text-secondary-400 italic">Not specified</span>}
+        <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+          <span className="text-gray-700 flex-1">
+            {value || <span className="text-gray-400 italic">Not specified</span>}
           </span>
           <button
             onClick={() => handleFieldEdit(field, value)}
-            className="ml-2 p-1 text-secondary-500 hover:text-primary-600 transition-colors"
+            className="ml-2 p-1 text-gray-500 hover:text-blue-600 transition-colors"
           >
             <Edit3 className="w-4 h-4" />
           </button>
@@ -135,7 +135,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
   const renderArrayField = (label: string, field: string, items: any[], template: any) => (
     <div className="mb-6">
       <div className="flex items-center justify-between mb-3">
-        <label className="block text-sm font-medium text-secondary-700">
+        <label className="block text-sm font-medium text-gray-700">
           {label}
         </label>
         <button
@@ -149,9 +149,9 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
       
       <div className="space-y-3">
         {items.map((item, index) => (
-          <div key={index} className="p-3 bg-secondary-50 rounded-lg border border-secondary-200">
+          <div key={index} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium text-secondary-600">
+              <span className="text-sm font-medium text-gray-600">
                 Item {index + 1}
               </span>
               <button
@@ -164,7 +164,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
             
             {Object.keys(item).map((key) => (
               <div key={key} className="mb-2">
-                <label className="block text-xs font-medium text-secondary-600 mb-1 capitalize">
+                <label className="block text-xs font-medium text-gray-600 mb-1 capitalize">
                   {key.replace(/([A-Z])/g, ' $1').trim()}
                 </label>
                 {Array.isArray(item[key]) ? (
@@ -191,13 +191,13 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-between p-2 bg-white rounded border border-secondary-200">
-                        <span className="text-sm text-secondary-700">
-                          {item[key].join(', ') || <span className="text-secondary-400 italic">None</span>}
+                      <div className="flex items-center justify-between p-2 bg-white rounded border border-gray-200">
+                        <span className="text-sm text-gray-700">
+                          {item[key].join(', ') || <span className="text-gray-400 italic">None</span>}
                         </span>
                         <button
                           onClick={() => handleArrayFieldEdit(field, index, key)}
-                          className="ml-2 p-1 text-secondary-500 hover:text-primary-600 transition-colors"
+                          className="ml-2 p-1 text-gray-500 hover:text-blue-600 transition-colors"
                         >
                           <Edit3 className="w-3 h-3" />
                         </button>
@@ -228,13 +228,13 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
                         </button>
                       </div>
                     ) : (
-                      <div className="flex items-center justify-between p-2 bg-white rounded border border-secondary-200">
-                        <span className="text-sm text-secondary-700">
-                          {item[key] || <span className="text-secondary-400 italic">Not specified</span>}
+                      <div className="flex items-center justify-between p-2 bg-white rounded border border-gray-200">
+                        <span className="text-sm text-gray-700">
+                          {item[key] || <span className="text-gray-400 italic">Not specified</span>}
                         </span>
                         <button
                           onClick={() => handleArrayFieldEdit(field, index, key)}
-                          className="ml-2 p-1 text-secondary-500 hover:text-primary-600 transition-colors"
+                          className="ml-2 p-1 text-gray-500 hover:text-blue-600 transition-colors"
                         >
                           <Edit3 className="w-3 h-3" />
                         </button>
@@ -248,7 +248,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
         ))}
         
         {items.length === 0 && (
-          <div className="text-center py-4 text-secondary-500 text-sm">
+          <div className="text-center py-4 text-gray-500 text-sm">
             No {label.toLowerCase()} added yet
           </div>
         )}
@@ -260,7 +260,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
     <div className="space-y-6 max-h-96 overflow-y-auto">
       {/* Header Section */}
       <div>
-        <h4 className="text-lg font-semibold text-secondary-800 mb-4 border-b border-secondary-200 pb-2">
+        <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
           Header Information
         </h4>
         {renderEditableField('Full Name', 'header.name', editingData.header.name)}
@@ -270,7 +270,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
 
       {/* Personal Details Section */}
       <div>
-        <h4 className="text-lg font-semibold text-secondary-800 mb-4 border-b border-secondary-200 pb-2">
+        <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
           Personal Details
         </h4>
         {renderEditableField('Nationality', 'personalDetails.nationality', editingData.personalDetails.nationality)}
@@ -279,7 +279,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
         
         {/* Languages */}
         <div className="mb-4">
-          <label className="block text-sm font-medium text-secondary-700 mb-2">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
             Languages
           </label>
           {editingField === 'personalDetails.languages' ? (
@@ -305,13 +305,13 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
               </button>
             </div>
           ) : (
-            <div className="flex items-center justify-between p-3 bg-secondary-50 rounded-lg border border-secondary-200">
-              <span className="text-secondary-700 flex-1">
-                {editingData.personalDetails.languages.join(', ') || <span className="text-secondary-400 italic">No languages specified</span>}
+            <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <span className="text-gray-700 flex-1">
+                {editingData.personalDetails.languages.join(', ') || <span className="text-gray-400 italic">No languages specified</span>}
               </span>
               <button
                 onClick={() => handleFieldEdit('personalDetails.languages', editingData.personalDetails.languages.join(', '))}
-                className="ml-2 p-1 text-secondary-500 hover:text-primary-600 transition-colors"
+                className="ml-2 p-1 text-gray-500 hover:text-blue-600 transition-colors"
               >
                 <Edit3 className="w-4 h-4" />
               </button>
@@ -321,7 +321,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
 
         {/* Contact Information */}
         <div>
-          <h5 className="text-sm font-medium text-secondary-700 mb-3">Contact Information</h5>
+          <h5 className="text-sm font-medium text-gray-700 mb-3">Contact Information</h5>
           {renderEditableField('Email', 'personalDetails.contactInfo.email', editingData.personalDetails.contactInfo.email)}
           {renderEditableField('Phone', 'personalDetails.contactInfo.phone', editingData.personalDetails.contactInfo.phone)}
           {renderEditableField('Address', 'personalDetails.contactInfo.address', editingData.personalDetails.contactInfo.address, true)}
@@ -330,7 +330,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
 
       {/* Profile Section */}
       <div>
-        <h4 className="text-lg font-semibold text-secondary-800 mb-4 border-b border-secondary-200 pb-2">
+        <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
           Professional Profile
         </h4>
         {renderEditableField('Profile Summary', 'profile', editingData.profile, true)}
@@ -354,7 +354,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
 
       {/* Skills Section */}
       <div>
-        <h4 className="text-lg font-semibold text-secondary-800 mb-4 border-b border-secondary-200 pb-2">
+        <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
           Key Skills
         </h4>
         {renderEditableField('Skills (one per line)', 'keySkills', editingData.keySkills.join('\n'), true)}
@@ -362,7 +362,7 @@ export default function CVEditor({ cv, onUpdate }: CVEditorProps) {
 
       {/* Interests Section */}
       <div>
-        <h4 className="text-lg font-semibold text-secondary-800 mb-4 border-b border-secondary-200 pb-2">
+        <h4 className="text-lg font-semibold text-gray-800 mb-4 border-b border-gray-200 pb-2">
           Interests
         </h4>
         {renderEditableField('Interests (one per line)', 'interests', editingData.interests.join('\n'), true)}

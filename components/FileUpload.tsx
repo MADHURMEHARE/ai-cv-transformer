@@ -103,27 +103,27 @@ export default function FileUpload({ onFileUpload, isProcessing, acceptedTypes }
         
         {isDragActive ? (
           <div className="text-center">
-            <Upload className="w-12 h-12 mx-auto mb-3 text-primary-500" />
-            <p className="text-lg font-medium text-primary-600">Drop your CV here</p>
-            <p className="text-sm text-primary-500">Release to upload</p>
+            <Upload className="w-12 h-12 mx-auto mb-3 text-blue-500" />
+            <p className="text-lg font-medium text-blue-600">Drop your CV here</p>
+            <p className="text-sm text-blue-500">Release to upload</p>
           </div>
         ) : (
           <div className="text-center">
-            <Upload className="w-12 h-12 mx-auto mb-3 text-secondary-400" />
-            <p className="text-lg font-medium text-secondary-700 mb-2">
+            <Upload className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+            <p className="text-lg font-medium text-gray-700 mb-2">
               Drag & drop your CV here
             </p>
-            <p className="text-sm text-secondary-500 mb-4">
+            <p className="text-sm text-gray-500 mb-4">
               or click to browse files
             </p>
-            <div className="flex flex-wrap justify-center gap-2 text-xs text-secondary-500">
+            <div className="flex flex-wrap justify-center gap-2 text-xs text-gray-500">
               {acceptedTypes.map(type => (
-                <span key={type} className="px-2 py-1 bg-secondary-100 rounded">
+                <span key={type} className="px-2 py-1 bg-gray-100 rounded">
                   {type.toUpperCase()}
                 </span>
               ))}
             </div>
-            <p className="text-xs text-secondary-400 mt-2">
+            <p className="text-xs text-gray-400 mt-2">
               Maximum file size: 10MB
             </p>
           </div>
@@ -140,13 +140,13 @@ export default function FileUpload({ onFileUpload, isProcessing, acceptedTypes }
 
       {/* Uploaded File Display */}
       {uploadedFile && (
-        <div className="p-4 bg-secondary-50 border border-secondary-200 rounded-lg">
+        <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               {getFileIcon(uploadedFile.name)}
               <div>
-                <p className="font-medium text-secondary-900">{uploadedFile.name}</p>
-                <p className="text-sm text-secondary-600">
+                <p className="font-medium text-gray-900">{uploadedFile.name}</p>
+                <p className="text-sm text-gray-600">
                   {formatFileSize(uploadedFile.size)}
                 </p>
               </div>
@@ -155,7 +155,7 @@ export default function FileUpload({ onFileUpload, isProcessing, acceptedTypes }
             {isProcessing ? (
               <div className="flex items-center space-x-2">
                 <div className="spinner w-4 h-4"></div>
-                <span className="text-sm text-secondary-600">Processing...</span>
+                <span className="text-sm text-gray-600">Processing...</span>
               </div>
             ) : (
               <div className="flex items-center space-x-2">
@@ -163,7 +163,7 @@ export default function FileUpload({ onFileUpload, isProcessing, acceptedTypes }
                 <span className="text-sm text-green-600">Uploaded</span>
                 <button
                   onClick={handleRemoveFile}
-                  className="p-1 text-secondary-400 hover:text-red-500 transition-colors"
+                  className="p-1 text-gray-400 hover:text-red-500 transition-colors"
                   title="Remove file"
                 >
                   <X className="w-4 h-4" />
@@ -190,7 +190,7 @@ export default function FileUpload({ onFileUpload, isProcessing, acceptedTypes }
       )}
 
       {/* Instructions */}
-      <div className="text-xs text-secondary-500 space-y-1">
+      <div className="text-xs text-gray-500 space-y-1">
         <p>• Supported formats: PDF, DOCX, XLSX, XLS</p>
         <p>• Maximum file size: 10MB</p>
         <p>• Your CV will be processed using AI to extract and format content</p>
