@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { Upload, FileText, Download, Edit3, Eye, Trash2, CheckCircle, AlertCircle, Clock } from 'lucide-react'
-import toast from 'react-hot-toast'
 import FileUpload from '@/components/FileUpload'
 import CVPreview from '@/components/CVPreview'
 import CVEditor from '@/components/CVEditor'
@@ -45,17 +44,17 @@ export default function Home() {
 
       if (response.ok) {
         const data = await response.json()
-        toast.success('File uploaded successfully! Processing started.')
+        console.log('File uploaded successfully! Processing started.')
         
         // Poll for status updates
         pollCVStatus(data.cvId)
       } else {
         const error = await response.json()
-        toast.error(error.error || 'Upload failed')
+        console.error(error.error || 'Upload failed')
       }
     } catch (error) {
       console.error('Upload error:', error)
-      toast.error('Upload failed. Please try again.')
+      console.error('Upload failed. Please try again.')
     } finally {
       setIsProcessing(false)
     }
@@ -75,10 +74,10 @@ export default function Home() {
           setCvs(prev => prev.map(c => c._id === cvId ? cv : c))
           
           if (cv.status === 'completed') {
-            toast.success('CV processing completed!')
+            console.log('CV processing completed!')
             return
           } else if (cv.status === 'error') {
-            toast.error('CV processing failed')
+            console.error('CV processing failed')
             return
           }
           
@@ -87,7 +86,7 @@ export default function Home() {
             attempts++
             setTimeout(poll, 10000) // Poll every 10 seconds
           } else {
-            toast.error('Processing timeout. Please check the CV status.')
+            console.error('Processing timeout. Please check the CV status.')
           }
         }
       } catch (error) {
@@ -122,13 +121,13 @@ export default function Home() {
         const updatedCV = await response.json()
         setSelectedCV(updatedCV.cv)
         setCvs(prev => prev.map(c => c._id === selectedCV._id ? updatedCV.cv : c))
-        toast.success('CV updated successfully!')
+        console.log('CV updated successfully!')
       } else {
-        toast.error('Failed to update CV')
+        console.error('Failed to update CV')
       }
     } catch (error) {
       console.error('Update error:', error)
-      toast.error('Failed to update CV')
+      console.error('Failed to update CV')
     }
   }
 
@@ -145,13 +144,13 @@ export default function Home() {
         if (selectedCV?._id === cvId) {
           setSelectedCV(null)
         }
-        toast.success('CV deleted successfully!')
+        console.log('CV deleted successfully!')
       } else {
-        toast.error('Failed to delete CV')
+        console.error('Failed to delete CV')
       }
     } catch (error) {
       console.error('Delete error:', error)
-      toast.error('Failed to delete CV')
+      console.error('Failed to delete CV')
     }
   }
 
@@ -169,13 +168,13 @@ export default function Home() {
         const data = await response.json()
         // Trigger download
         window.open(data.downloadUrl, '_blank')
-        toast.success('Export generated successfully!')
+        console.log('Export generated successfully!')
       } else {
-        toast.error('Export failed')
+        console.error('Export failed')
       }
     } catch (error) {
       console.error('Export error:', error)
-      toast.error('Export failed')
+      console.error('Export failed')
     }
   }
 
