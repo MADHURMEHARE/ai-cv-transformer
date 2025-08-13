@@ -1,0 +1,39 @@
+services:
+  # Backend API Service
+  - type: web
+    name: cv-transformer-api
+    env: node
+    plan: starter
+    buildCommand: npm install && npm run build
+    startCommand: cd server && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        fromDatabase:
+          name: cv-transformer-db
+          property: connectionString
+      - key: OPENAI_API_KEY
+        value: your_openai_api_key_here
+      - key: CORS_ORIGIN
+        value: https://cv-transformer-frontend.onrender.com
+      - key: SESSION_SECRET
+        generateValue: true
+
+  # Frontend Web Service
+  - type: web
+    name: cv-transformer-frontend
+    env: static
+    plan: starter
+    buildCommand: npm install && npm run build
+    staticPublishPath: out
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://cv-transformer-api.onrender.com
+
+databases:
+  - name: cv-transformer-db
+    databaseName: cv-transformer
+    user: cv-transformer-user
