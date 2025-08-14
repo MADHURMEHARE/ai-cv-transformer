@@ -1,19 +1,16 @@
 export interface CV {
   _id: string;
-  originalFileName: string;
+  originalName: string;
   originalFileType: string;
-  originalFilePath: string;
-  extractedText: string;
-  transformedData: CVTransformedData;
+  filePath: string;
+  extractedText?: string;
+  transformedData?: CVTransformedData;
   status: 'uploaded' | 'processing' | 'completed' | 'error';
-  aiProcessingDetails: AIProcessingDetails;
-  exportedFiles: ExportedFile[];
+  aiProcessingDetails?: AIProcessingDetails;
   uploadedAt: string;
   processedAt?: string;
-  lastModified: string;
-  sessionId: string;
-  fileSize: number;
   processingDuration?: number;
+  errors?: string[];
 }
 
 export interface CVTransformedData {
@@ -64,13 +61,7 @@ export interface AIProcessingDetails {
   modelUsed: string;
   processingTime: number;
   confidence: number;
-  errors: string[];
-}
-
-export interface ExportedFile {
-  format: string;
-  filePath: string;
-  exportedAt: string;
+  errors?: string[];
 }
 
 export interface FileUploadProps {
@@ -85,7 +76,7 @@ export interface CVPreviewProps {
 
 export interface CVEditorProps {
   cv: CV;
-  onUpdate: (updatedData: Partial<CVTransformedData>) => void;
+  onUpdate: (updatedData: CVTransformedData) => void;
 }
 
 export interface AIStatus {

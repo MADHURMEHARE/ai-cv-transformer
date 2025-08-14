@@ -126,7 +126,7 @@ async function transformCVWithAI(text, preferences = {}) {
 }
 
 /**
- * Transform CV using OpenAI GPT-4
+ * Transform CV using OpenAI GPT-4 with EHS formatting standards
  * @param {string} text - Raw CV text
  * @param {Object} preferences - User preferences
  * @returns {Promise<Object>} - Transformed CV data
@@ -141,14 +141,16 @@ async function transformWithOpenAI(text, preferences) {
       messages: [
         {
           role: "system",
-          content: "You are an expert CV transformation specialist. Transform the given CV text according to EHS formatting standards. Return only valid JSON."
+          content: `You are an expert CV transformation specialist with deep knowledge of EHS (Executive Headhunting Services) formatting standards. Your task is to transform raw CV text into a professionally formatted, structured document that follows all EHS requirements exactly.
+
+IMPORTANT: You must return ONLY valid JSON in the exact structure specified. Do not include any explanations, markdown, or additional text.`
         },
         {
           role: "user",
           content: prompt
         }
       ],
-      temperature: 0.3,
+      temperature: 0.1,
       max_tokens: 4000
     });
 
@@ -162,120 +164,178 @@ async function transformWithOpenAI(text, preferences) {
 }
 
 /**
- * Transform CV using Anthropic Claude
+ * Transform CV using Anthropic Claude with EHS formatting standards
  * @param {string} text - Raw CV text
  * @param {Object} preferences - User preferences
  * @returns {Promise<Object>} - Transformed CV data
  */
 async function transformWithAnthropic(text, preferences) {
+  console.log('Anthropic transformation started');
   const prompt = createEHSFormattedPrompt(text, preferences);
   
-  const message = await anthropic.messages.create({
-    model: "claude-3-sonnet-20240229",
-    max_tokens: 4000,
-    temperature: 0.3,
-    messages: [
-      {
-        role: "user",
-        content: prompt
-      }
-    ]
-  });
+  try {
+    const message = await anthropic.messages.create({
+      model: "claude-3-sonnet-20240229",
+      max_tokens: 4000,
+      temperature: 0.1,
+      messages: [
+        {
+          role: "user",
+          content: prompt
+        }
+      ]
+    });
 
-  const response = message.content[0].text;
-  return parseAIResponse(response);
+    const response = message.content[0].text;
+    console.log('Anthropic response received, length:', response.length);
+    return parseAIResponse(response);
+  } catch (error) {
+    console.error('Anthropic transformation error:', error);
+    throw error;
+  }
 }
 
 /**
- * Transform CV using Google Gemini
+ * Transform CV using Google Gemini with EHS formatting standards
  * @param {string} text - Raw CV text
  * @param {Object} preferences - User preferences
  * @returns {Promise<Object>} - Transformed CV data
  */
 async function transformWithGoogle(text, preferences) {
+  console.log('Google transformation started');
   const prompt = createEHSFormattedPrompt(text, preferences);
-  const model = genAI.getGenerativeModel({ model: "gemini-pro" });
   
-  const result = await model.generateContent(prompt);
-  const response = result.response.text();
-  return parseAIResponse(response);
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const result = await model.generateContent(prompt);
+    const response = result.response.text();
+    console.log('Google response received, length:', response.length);
+    return parseAIResponse(response);
+  } catch (error) {
+    console.error('Google transformation error:', error);
+    throw error;
+  }
 }
 
 /**
- * Create EHS formatting prompt for AI models
+ * Create comprehensive EHS formatting prompt for AI models
  * @param {string} text - Raw CV text
  * @param {Object} preferences - User preferences
  * @returns {string} - Formatted prompt
  */
 function createEHSFormattedPrompt(text, preferences) {
-  return `Transform the following CV text according to EHS formatting standards:
+  return `Transform the following raw CV text into a professionally formatted document following EHS (Executive Headhunting Services) standards EXACTLY.
 
-CV TEXT:
+RAW CV TEXT:
 ${text}
 
-EHS FORMATTING REQUIREMENTS:
-1. Typography: Use Palatino Linotype font throughout
-2. Photo: Size to 4.7cm (convert landscape to portrait if needed)
-3. Dates: Use first 3 letters only (Jan 2020, not January 2020)
-4. Capitalization: Job titles always start with capital letters
-5. Structure:
-   - Header: Name, Job Title, Professional Photo
+EHS FORMATTING REQUIREMENTS - FOLLOW THESE RULES EXACTLY:
+
+1. TYPOGRAPHY & STRUCTURE:
+   - Font: Palatino Linotype throughout (specify in output)
+   - Photo Sizing: 4.7cm (handle landscape → portrait conversion)
+   - Date Format: First 3 letters only (Jan 2020, not January 2020)
+   - Capitalization: Job titles ALWAYS start with capital letters
+   - Professional formatting with consistent spacing
+
+2. CONTENT ORGANIZATION (MUST FOLLOW THIS ORDER):
+   - Header: Full Name, Job Title, Professional Photo URL
    - Personal Details: Nationality, Languages, DOB, Marital Status
-   - Profile: Professional summary
-   - Experience: Reverse chronological, bullet-pointed
-   - Education: Consistent formatting
-   - Key Skills: Bullet-pointed
-   - Interests: Bullet-pointed
+   - Profile: Professional summary (2-3 sentences max)
+   - Experience: Reverse chronological order, bullet-pointed responsibilities
+   - Education: Consistent formatting with degree, field, institution, year
+   - Key Skills: Bullet-pointed, relevant to the role
+   - Interests: Bullet-pointed, professional and relevant
 
-6. Content Cleanup:
-   - Remove "I am responsible for" → "Responsible for"
-   - Fix: "Principle" → "Principal", "Discrete" → "Discreet"
-   - Remove: Age, Dependants
-   - Convert paragraphs to bullet points
-   - Ensure professional tone
+3. CONTENT CLEANUP RULES (APPLY THESE TRANSFORMATIONS):
+   - Remove redundant phrases: "I am responsible for" → "Responsible for"
+   - Fix common mistakes: "Principle" → "Principal", "Discrete" → "Discreet"
+   - Remove inappropriate fields: Age, Dependants, Personal opinions
+   - Convert long paragraphs to bullet points
+   - Ensure professional tone throughout
+   - Remove informal language and slang
+   - Standardize job titles and company names
 
-7. File Naming: FirstName (Candidate BH No) Client CV
+4. FILE NAMING FORMAT:
+   - Format: "FirstName (Candidate BH No) Client CV"
+   - Example: "John (BH001) Client CV"
 
-Return the transformed data in this exact JSON structure:
+5. EXPERIENCE FORMATTING:
+   - Company Name (Bold)
+   - Job Title (Capitalized, Professional)
+   - Duration (Month Year - Month Year format)
+   - Responsibilities as bullet points (start with action verbs)
+
+6. EDUCATION FORMATTING:
+   - Degree Type (e.g., Bachelor's, Master's, PhD)
+   - Field of Study
+   - Institution Name
+   - Graduation Year (3-letter month format)
+
+7. SKILLS & INTERESTS:
+   - Relevant technical skills
+   - Soft skills (communication, leadership, etc.)
+   - Professional interests only
+   - Remove personal hobbies unless relevant
+
+CRITICAL: Return ONLY valid JSON in this EXACT structure:
 {
   "header": {
-    "name": "string",
-    "jobTitle": "string",
-    "photoUrl": "string"
+    "name": "Full Name",
+    "jobTitle": "Professional Job Title",
+    "photoUrl": "Photo URL or placeholder"
   },
   "personalDetails": {
-    "nationality": "string",
-    "languages": ["string"],
-    "dateOfBirth": "string",
-    "maritalStatus": "string",
+    "nationality": "Nationality",
+    "languages": ["Language 1", "Language 2"],
+    "dateOfBirth": "DOB in DD/MM/YYYY format",
+    "maritalStatus": "Marital Status",
     "contactInfo": {
-      "email": "string",
-      "phone": "string",
-      "address": "string"
+      "email": "Email Address",
+      "phone": "Phone Number",
+      "address": "Full Address"
     }
   },
-  "profile": "string",
+  "profile": "Professional summary in 2-3 sentences",
   "experience": [
     {
-      "company": "string",
-      "position": "string",
-      "duration": "string",
-      "responsibilities": ["string"]
+      "company": "Company Name",
+      "position": "Job Title",
+      "duration": "Jan 2020 - Dec 2023",
+      "responsibilities": [
+        "Responsibility 1 starting with action verb",
+        "Responsibility 2 starting with action verb",
+        "Responsibility 3 starting with action verb"
+      ]
     }
   ],
   "education": [
     {
-      "institution": "string",
-      "degree": "string",
-      "field": "string",
-      "year": "string"
+      "institution": "Institution Name",
+      "degree": "Degree Type",
+      "field": "Field of Study",
+      "year": "Jan 2020"
     }
   ],
-  "keySkills": ["string"],
-  "interests": ["string"]
+  "keySkills": [
+    "Skill 1",
+    "Skill 2",
+    "Skill 3"
+  ],
+  "interests": [
+    "Professional Interest 1",
+    "Professional Interest 2"
+  ]
 }
 
-Ensure all text follows professional standards and EHS formatting rules.`;
+IMPORTANT: 
+- Apply ALL EHS formatting rules strictly
+- Ensure professional tone throughout
+- Remove any inappropriate or personal content
+- Format dates correctly (3-letter month format)
+- Capitalize job titles properly
+- Convert paragraphs to bullet points
+- Return ONLY the JSON structure above`;
 }
 
 /**
@@ -285,35 +345,41 @@ Ensure all text follows professional standards and EHS formatting rules.`;
  */
 function parseAIResponse(response) {
   try {
+    console.log('Parsing AI response...');
+    
     // Try to extract JSON from response
     const jsonMatch = response.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
+      console.log('JSON parsed successfully, validating...');
       return validateAndCleanData(parsed);
     }
     
     throw new Error('No valid JSON found in response');
   } catch (error) {
     console.error('Failed to parse AI response:', error);
+    console.error('Response content:', response);
     throw new Error(`Failed to parse AI response: ${error.message}`);
   }
 }
 
 /**
- * Validate and clean parsed data
+ * Validate and clean parsed data according to EHS standards
  * @param {Object} data - Parsed CV data
  * @returns {Object} - Cleaned and validated data
  */
 function validateAndCleanData(data) {
+  console.log('Validating and cleaning data...');
+  
   const cleaned = {
     header: {
-      name: data.header?.name || 'Unknown',
+      name: data.header?.name || 'Unknown Name',
       jobTitle: data.header?.jobTitle || 'Professional',
       photoUrl: data.header?.photoUrl || ''
     },
     personalDetails: {
       nationality: data.personalDetails?.nationality || '',
-      languages: Array.isArray(data.personalDetails?.languages) ? data.personalDetails.languages : [],
+      languages: Array.isArray(data.personalDetails?.languages) ? data.personalDetails.languages : ['English'],
       dateOfBirth: data.personalDetails?.dateOfBirth || '',
       maritalStatus: data.personalDetails?.maritalStatus || '',
       contactInfo: {
@@ -322,24 +388,35 @@ function validateAndCleanData(data) {
         address: data.personalDetails?.contactInfo?.address || ''
       }
     },
-    profile: data.profile || '',
-    experience: Array.isArray(data.experience) ? data.experience : [],
-    education: Array.isArray(data.education) ? data.education : [],
-    keySkills: Array.isArray(data.keySkills) ? data.keySkills : [],
-    interests: Array.isArray(data.interests) ? data.interests : []
+    profile: data.profile || 'Professional with experience in various fields.',
+    experience: Array.isArray(data.experience) ? data.experience.map(exp => ({
+      company: exp.company || 'Company Name',
+      position: exp.position || 'Position Title',
+      duration: exp.duration || 'Duration',
+      responsibilities: Array.isArray(exp.responsibilities) ? exp.responsibilities : ['Responsibility']
+    })) : [],
+    education: Array.isArray(data.education) ? data.education.map(edu => ({
+      institution: edu.institution || 'Institution Name',
+      degree: edu.degree || 'Degree',
+      field: edu.field || 'Field of Study',
+      year: edu.year || 'Year'
+    })) : [],
+    keySkills: Array.isArray(data.keySkills) ? data.keySkills : ['Communication', 'Problem Solving', 'Teamwork'],
+    interests: Array.isArray(data.interests) ? data.interests : ['Professional Development', 'Technology', 'Innovation']
   };
 
   // Apply EHS formatting rules
   cleaned.header.jobTitle = applyEHSFormatting(cleaned.header.jobTitle);
   cleaned.profile = applyEHSFormatting(cleaned.profile);
   
-  // Clean experience entries
+  // Format experience
   cleaned.experience = cleaned.experience.map(exp => ({
     ...exp,
     position: applyEHSFormatting(exp.position),
     responsibilities: exp.responsibilities.map(resp => applyEHSFormatting(resp))
   }));
 
+  console.log('Data validation and cleaning completed');
   return cleaned;
 }
 
@@ -349,26 +426,29 @@ function validateAndCleanData(data) {
  * @returns {string} - Formatted text
  */
 function applyEHSFormatting(text) {
-  if (!text) return '';
+  if (!text) return text;
   
   let formatted = text;
   
   // Fix common mistakes
-  formatted = formatted
-    .replace(/\bPrinciple\b/g, 'Principal')
-    .replace(/\bDiscrete\b/g, 'Discreet')
-    .replace(/\bI am responsible for\b/gi, 'Responsible for')
-    .replace(/\bI am\b/gi, '')
-    .replace(/\bI have\b/gi, '')
-    .replace(/\bI can\b/gi, 'Can')
-    .replace(/\bI will\b/gi, 'Will');
+  formatted = formatted.replace(/Principle/g, 'Principal');
+  formatted = formatted.replace(/Discrete/g, 'Discreet');
   
-  // Ensure proper capitalization for job titles
-  if (formatted.length > 0) {
-    formatted = formatted.charAt(0).toUpperCase() + formatted.slice(1);
-  }
+  // Remove redundant phrases
+  formatted = formatted.replace(/I am responsible for/gi, 'Responsible for');
+  formatted = formatted.replace(/I am in charge of/gi, 'In charge of');
+  formatted = formatted.replace(/I have experience in/gi, 'Experience in');
   
-  return formatted.trim();
+  // Capitalize job titles
+  formatted = formatted.replace(/\b(manager|director|engineer|analyst|consultant|specialist|coordinator|assistant|supervisor|lead)\b/gi, 
+    (match) => match.charAt(0).toUpperCase() + match.slice(1).toLowerCase()
+  );
+  
+  // Ensure professional tone
+  formatted = formatted.replace(/\b(awesome|amazing|cool|great|fantastic)\b/gi, 'excellent');
+  formatted = formatted.replace(/\b(very|really|quite)\s+/gi, '');
+  
+  return formatted;
 }
 
 /**
@@ -472,31 +552,6 @@ async function basicCVParsing(text) {
   }
 }
 
-/**
- * Enhance specific content section
- * @param {string} content - Content to enhance
- * @param {string} section - Section type
- * @param {Object} preferences - Enhancement preferences
- * @returns {Promise<string>} - Enhanced content
- */
-async function enhanceContent(content, section, preferences = {}) {
-  // Implementation for content enhancement
-  return content; // Placeholder
-}
-
-/**
- * Fix grammar and language issues
- * @param {string} content - Content to fix
- * @param {Object} preferences - Fixing preferences
- * @returns {Promise<string>} - Corrected content
- */
-async function fixGrammar(content, preferences = {}) {
-  // Implementation for grammar fixing
-  return content; // Placeholder
-}
-
 module.exports = {
-  transformCVWithAI,
-  enhanceContent,
-  fixGrammar
+  transformCVWithAI
 };

@@ -1,111 +1,61 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Upload, FileText, Download, Edit3, Eye, Trash2, CheckCircle, AlertCircle, Clock, Sparkles, Zap, Star, Users, Award, ArrowRight } from 'lucide-react'
+import { CV, CVTransformedData } from '@/types/cv'
 import FileUpload from '@/components/FileUpload'
 import CVPreview from '@/components/CVPreview'
 import CVEditor from '@/components/CVEditor'
-import { CV } from '@/types/cv'
+import { Upload, FileText, Download, Edit3, Eye, Trash2, CheckCircle, AlertCircle, Clock, Sparkles, Zap, Star, Users, Award, ArrowRight, FileDown } from 'lucide-react'
 
 export default function Home() {
   const [cvs, setCvs] = useState<CV[]>([])
   const [selectedCV, setSelectedCV] = useState<CV | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
-  const [sessionId] = useState(`session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`)
 
   useEffect(() => {
-    loadCVs()
+    fetchCVs()
   }, [])
 
-  const loadCVs = async () => {
+  const fetchCVs = async () => {
     try {
-      const response = await fetch(`/api/cv/session/${sessionId}`)
+      const response = await fetch('/api/cv')
       if (response.ok) {
         const data = await response.json()
         setCvs(data)
       }
     } catch (error) {
-      console.error('Failed to load CVs:', error)
+      console.error('Failed to fetch CVs:', error)
     }
   }
 
   const handleFileUpload = async (file: File) => {
     setIsProcessing(true)
-    
-    try {
-      const formData = new FormData()
-      formData.append('cv', file)
-      formData.append('sessionId', sessionId)
+    const formData = new FormData()
+    formData.append('cv', file)
 
+    try {
       const response = await fetch('/api/cv/upload', {
         method: 'POST',
         body: formData,
       })
 
       if (response.ok) {
-        const data = await response.json()
-        console.log('File uploaded successfully! Processing started.')
-        
-        // Poll for status updates
-        pollCVStatus(data.cvId)
+        const newCV = await response.json()
+        setCvs(prev => [newCV, ...prev])
+        setSelectedCV(newCV)
+        console.log('CV uploaded successfully:', newCV)
       } else {
         const error = await response.json()
-        console.error(error.error || 'Upload failed')
+        console.error('Upload failed:', error)
       }
     } catch (error) {
       console.error('Upload error:', error)
-      console.error('Upload failed. Please try again.')
     } finally {
       setIsProcessing(false)
     }
   }
 
-  const pollCVStatus = async (cvId: string) => {
-    const maxAttempts = 30 // 5 minutes with 10-second intervals
-    let attempts = 0
-
-    const poll = async () => {
-      try {
-        const response = await fetch(`/api/cv/${cvId}`)
-        if (response.ok) {
-          const cv = await response.json()
-          
-          // Update CVs list
-          setCvs(prev => prev.map(c => c._id === cvId ? cv : c))
-          
-          if (cv.status === 'completed') {
-            console.log('CV processing completed!')
-            return
-          } else if (cv.status === 'error') {
-            console.error('CV processing failed')
-            return
-          }
-          
-          // Continue polling if still processing
-          if (attempts < maxAttempts) {
-            attempts++
-            setTimeout(poll, 10000) // Poll every 10 seconds
-          } else {
-            console.error('Processing timeout. Please check the CV status.')
-          }
-        }
-      } catch (error) {
-        console.error('Polling error:', error)
-        if (attempts < maxAttempts) {
-          attempts++
-          setTimeout(poll, 10000)
-        }
-      }
-    }
-
-    poll()
-  }
-
-  const handleCVSelect = (cv: CV) => {
-    setSelectedCV(cv)
-  }
-
-  const handleCVUpdate = async (updatedData: Partial<CV['transformedData']>) => {
+  const handleCVUpdate = async (updatedData: CVTransformedData) => {
     if (!selectedCV) return
 
     try {
@@ -119,62 +69,67 @@ export default function Home() {
 
       if (response.ok) {
         const updatedCV = await response.json()
-        setSelectedCV(updatedCV.cv)
-        setCvs(prev => prev.map(c => c._id === selectedCV._id ? updatedCV.cv : c))
-        console.log('CV updated successfully!')
-      } else {
-        console.error('Failed to update CV')
+        setCvs(prev => prev.map(cv => cv._id === updatedCV._id ? updatedCV : cv))
+        setSelectedCV(updatedCV)
+        console.log('CV updated successfully')
       }
     } catch (error) {
-      console.error('Update error:', error)
-      console.error('Failed to update CV')
+      console.error('Failed to update CV:', error)
     }
   }
 
   const handleCVDelete = async (cvId: string) => {
-    if (!confirm('Are you sure you want to delete this CV?')) return
-
     try {
       const response = await fetch(`/api/cv/${cvId}`, {
         method: 'DELETE',
       })
 
       if (response.ok) {
-        setCvs(prev => prev.filter(c => c._id !== cvId))
+        setCvs(prev => prev.filter(cv => cv._id !== cvId))
         if (selectedCV?._id === cvId) {
           setSelectedCV(null)
         }
-        console.log('CV deleted successfully!')
-      } else {
-        console.error('Failed to delete CV')
+        console.log('CV deleted successfully')
       }
     } catch (error) {
-      console.error('Delete error:', error)
-      console.error('Failed to delete CV')
+      console.error('Failed to delete CV:', error)
     }
   }
 
-  const handleExport = async (cvId: string, format: string) => {
+  const downloadEHSFormattedCV = async (cv: CV) => {
+    if (!cv.transformedData) {
+      console.error('No transformed data available')
+      return
+    }
+
     try {
-      const response = await fetch(`/api/cv/${cvId}/export`, {
+      const response = await fetch('/api/cv/export', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ format }),
+        body: JSON.stringify({
+          cvId: cv._id,
+          format: 'pdf',
+          ehsStandards: true
+        }),
       })
 
       if (response.ok) {
-        const data = await response.json()
-        // Trigger download
-        window.open(data.downloadUrl, '_blank')
-        console.log('Export generated successfully!')
+        const blob = await response.blob()
+        const url = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${cv.transformedData.header.name || 'CV'} (EHS Formatted).pdf`
+        document.body.appendChild(a)
+        a.click()
+        window.URL.revokeObjectURL(url)
+        document.body.removeChild(a)
       } else {
         console.error('Export failed')
       }
     } catch (error) {
       console.error('Export error:', error)
-      console.error('Export failed')
     }
   }
 
@@ -187,20 +142,20 @@ export default function Home() {
       case 'error':
         return <AlertCircle className="w-5 h-5 text-red-500" />
       default:
-        return <FileText className="w-5 h-5 text-blue-500" />
+        return <Upload className="w-5 h-5 text-blue-500" />
     }
   }
 
-  const getStatusClass = (status: string) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-200'
+        return 'status-completed'
       case 'processing':
-        return 'bg-amber-100 text-amber-800 border-amber-200'
+        return 'status-processing'
       case 'error':
-        return 'bg-red-100 text-red-800 border-red-200'
+        return 'status-error'
       default:
-        return 'bg-blue-100 text-blue-800 border-blue-200'
+        return 'status-uploaded'
     }
   }
 
@@ -208,148 +163,128 @@ export default function Home() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Hero Header */}
       <header className="relative overflow-hidden bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-700 shadow-2xl">
-        <div className="absolute inset-0 bg-black/10"></div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col lg:flex-row justify-between items-center py-12 lg:py-16">
-            <div className="text-center lg:text-left mb-8 lg:mb-0">
-              <div className="flex items-center justify-center lg:justify-start mb-4">
-                <div className="p-3 bg-white/20 rounded-full mr-4">
-                  <Sparkles className="w-8 h-8 text-white" />
-                </div>
-                <h1 className="text-4xl lg:text-5xl font-bold text-white">
-                  AI CV Transformer
-                </h1>
-              </div>
-              <p className="text-xl text-blue-100 max-w-2xl">
-                Transform raw CVs into polished, professional documents using cutting-edge AI technology
-              </p>
-              <div className="flex flex-wrap justify-center lg:justify-start gap-4 mt-6">
-                <div className="flex items-center text-blue-100">
-                  <Zap className="w-5 h-5 mr-2" />
-                  <span>AI-Powered</span>
-                </div>
-                <div className="flex items-center text-blue-100">
-                  <Star className="w-5 h-5 mr-2" />
-                  <span>Professional</span>
-                </div>
-                <div className="flex items-center text-blue-100">
-                  <Users className="w-5 h-5 mr-2" />
-                  <span>EHS Standards</span>
-                </div>
-              </div>
+        <div className="absolute inset-0 bg-black/20"></div>
+        <div className="relative max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:px-8 text-center">
+          <div className="flex items-center justify-center mb-6">
+            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mr-4 backdrop-blur-sm">
+              <Sparkles className="w-8 h-8 text-white" />
             </div>
-            <div className="text-center">
-              <div className="text-sm text-blue-200 mb-2">Session ID</div>
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
-                <span className="text-white font-mono text-sm">{sessionId.slice(-8)}</span>
-              </div>
+            <h1 className="text-5xl font-bold text-white">AI CV Transformer</h1>
+          </div>
+          <p className="text-xl text-blue-100 mb-8 max-w-3xl mx-auto leading-relaxed">
+            Transform raw, unstructured CVs into polished, professional documents using advanced AI technology. 
+            Follows EHS formatting standards with Palatino Linotype font and professional layout.
+          </p>
+          <div className="flex flex-wrap justify-center gap-4 text-blue-100">
+            <div className="flex items-center">
+              <Zap className="w-5 h-5 mr-2" />
+              <span>AI-Powered Processing</span>
+            </div>
+            <div className="flex items-center">
+              <Star className="w-5 h-5 mr-2" />
+              <span>EHS Standards</span>
+            </div>
+            <div className="flex items-center">
+              <Users className="w-5 h-5 mr-2" />
+              <span>Professional Format</span>
+            </div>
+            <div className="flex items-center">
+              <Award className="w-5 h-5 mr-2" />
+              <span>Executive Quality</span>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Column - File Upload & CV List */}
           <div className="lg:col-span-1 space-y-6">
             {/* File Upload Card */}
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-4">
+            <div className="card">
+              <div className="card-header bg-gradient-to-r from-blue-500 to-purple-600">
                 <h2 className="text-xl font-bold text-white flex items-center">
-                  <Upload className="w-6 h-6 mr-3" />
-                  Upload CV
+                  <Upload className="w-6 h-6 mr-3" /> Upload CV
                 </h2>
               </div>
-              <div className="p-6">
+              <div className="card-content">
                 <FileUpload 
-                  onFileUpload={handleFileUpload}
-                  isProcessing={isProcessing}
-                  acceptedTypes={['.pdf', '.docx', '.xlsx', '.xls']}
+                  onFileUpload={handleFileUpload} 
+                  isProcessing={isProcessing} 
+                  acceptedTypes={['.pdf', '.docx', '.xlsx', '.xls']} 
                 />
               </div>
             </div>
 
             {/* CV List Card */}
-            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-              <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-4">
+            <div className="card">
+              <div className="card-header bg-gradient-to-r from-emerald-500 to-teal-600">
                 <h2 className="text-xl font-bold text-white flex items-center">
-                  <FileText className="w-6 h-6 mr-3" />
-                  Your CVs
+                  <FileText className="w-6 h-6 mr-3" /> Your CVs
                 </h2>
               </div>
-              <div className="p-6">
+              <div className="card-content">
                 {cvs.length === 0 ? (
-                  <div className="text-center py-12">
-                    <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <FileText className="w-10 h-10 text-blue-500" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-800 mb-2">No CVs Yet</h3>
-                    <p className="text-gray-600 mb-4">Upload your first CV to get started</p>
-                    <div className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg font-medium">
-                      <Upload className="w-4 h-4 mr-2" />
-                      Upload Now
-                    </div>
+                  <div className="text-center py-8 text-gray-500">
+                    <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>No CVs uploaded yet</p>
+                    <p className="text-sm">Upload your first CV to get started</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
                     {cvs.map((cv) => (
                       <div
                         key={cv._id}
-                        className={`group p-4 rounded-xl border-2 cursor-pointer transition-all duration-300 hover:shadow-lg ${
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all duration-200 hover:shadow-md ${
                           selectedCV?._id === cv._id
-                            ? 'border-blue-500 bg-blue-50 shadow-lg scale-105'
-                            : 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/50'
+                            ? 'border-blue-500 bg-blue-50 shadow-md'
+                            : 'border-gray-200 bg-white hover:border-gray-300'
                         }`}
-                        onClick={() => handleCVSelect(cv)}
+                        onClick={() => setSelectedCV(cv)}
                       >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <p className="font-semibold text-gray-900 truncate group-hover:text-blue-700 transition-colors">
-                              {cv.originalFileName}
-                            </p>
-                            <div className="flex items-center mt-2">
-                              {getStatusIcon(cv.status)}
-                              <span className={`ml-2 px-3 py-1 rounded-full text-xs font-medium border ${getStatusClass(cv.status)}`}>
-                                {cv.status}
-                              </span>
-                            </div>
-                            {cv.transformedData?.header?.name && (
-                              <p className="text-sm text-gray-600 mt-1">
-                                {cv.transformedData.header.name}
-                              </p>
-                            )}
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-semibold text-gray-800 truncate">
+                            {cv.originalName}
+                          </h3>
+                          <div className="flex items-center space-x-2">
+                            {getStatusIcon(cv.status)}
+                            <span className={`status-badge ${getStatusColor(cv.status)}`}>
+                              {cv.status}
+                            </span>
                           </div>
-                          <div className="flex items-center space-x-2 ml-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                        </div>
+                        
+                        <div className="flex items-center justify-between text-sm text-gray-600">
+                          <span>{new Date(cv.uploadedAt).toLocaleDateString()}</span>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedCV(cv)
+                              }}
+                              className="p-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded transition-colors"
+                              title="View CV"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
                             {cv.status === 'completed' && (
-                              <>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleExport(cv._id, 'pdf')
-                                  }}
-                                  className="p-2 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all duration-200"
-                                  title="Export PDF"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setSelectedCV(cv)
-                                  }}
-                                  className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all duration-200"
-                                  title="Edit CV"
-                                >
-                                  <Edit3 className="w-4 h-4" />
-                                </button>
-                              </>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  downloadEHSFormattedCV(cv)
+                                }}
+                                className="p-1 text-emerald-600 hover:text-emerald-800 hover:bg-emerald-50 rounded transition-colors"
+                                title="Download EHS Formatted CV"
+                              >
+                                <FileDown className="w-4 h-4" />
+                              </button>
                             )}
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
                                 handleCVDelete(cv._id)
                               }}
-                              className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200"
+                              className="p-1 text-red-600 hover:text-red-800 hover:bg-red-50 rounded transition-colors"
                               title="Delete CV"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -369,56 +304,59 @@ export default function Home() {
             {selectedCV ? (
               <div className="space-y-6">
                 {/* CV Header Card */}
-                <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 px-6 py-4">
+                <div className="card">
+                  <div className="card-header bg-gradient-to-r from-gray-600 to-gray-700">
                     <div className="flex items-center justify-between">
-                      <h2 className="text-xl font-bold text-white">
-                        {selectedCV.transformedData?.header?.name || selectedCV.originalFileName}
+                      <h2 className="text-xl font-bold text-white flex items-center">
+                        <FileText className="w-6 h-6 mr-3" />
+                        {selectedCV.originalName}
                       </h2>
                       <div className="flex items-center space-x-3">
-                        <button
-                          onClick={() => setSelectedCV(null)}
-                          className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-medium transition-all duration-200 flex items-center"
-                        >
-                          <Eye className="w-4 h-4 mr-2" />
-                          Preview
-                        </button>
+                        <span className={`status-badge ${getStatusColor(selectedCV.status)}`}>
+                          {getStatusIcon(selectedCV.status)}
+                          <span className="ml-2">{selectedCV.status}</span>
+                        </span>
                         {selectedCV.status === 'completed' && (
                           <button
-                            onClick={() => handleExport(selectedCV._id, 'pdf')}
-                            className="px-6 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white rounded-lg font-bold transition-all duration-200 flex items-center shadow-lg hover:shadow-xl"
+                            onClick={() => downloadEHSFormattedCV(selectedCV)}
+                            className="btn-success px-4 py-2 text-sm flex items-center"
                           >
-                            <Download className="w-4 h-4 mr-2" />
-                            Export PDF
+                            <FileDown className="w-4 h-4 mr-2" />
+                            Download EHS CV
                           </button>
                         )}
                       </div>
                     </div>
                   </div>
-                  
-                  <div className="p-6">
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <div className="text-gray-500 mb-1">Status</div>
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getStatusClass(selectedCV.status)}`}>
-                          {selectedCV.status}
-                        </span>
-                      </div>
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <div className="text-gray-500 mb-1">File Type</div>
-                        <span className="font-medium text-gray-800">{selectedCV.originalFileType.toUpperCase()}</span>
-                      </div>
-                      <div className="text-center p-3 bg-gray-50 rounded-lg">
-                        <div className="text-gray-500 mb-1">Uploaded</div>
-                        <span className="font-medium text-gray-800">
-                          {new Date(selectedCV.uploadedAt).toLocaleDateString()}
+                  <div className="card-content">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-600">Uploaded:</span>
+                        <span className="ml-2 text-gray-800">
+                          {new Date(selectedCV.uploadedAt).toLocaleString()}
                         </span>
                       </div>
                       {selectedCV.processedAt && (
-                        <div className="text-center p-3 bg-gray-50 rounded-lg">
-                          <div className="text-gray-500 mb-1">Processed</div>
-                          <span className="font-medium text-gray-800">
-                            {new Date(selectedCV.processedAt).toLocaleDateString()}
+                        <div>
+                          <span className="font-medium text-gray-600">Processed:</span>
+                          <span className="ml-2 text-gray-800">
+                            {new Date(selectedCV.processedAt).toLocaleString()}
+                          </span>
+                        </div>
+                      )}
+                      {selectedCV.processingDuration && (
+                        <div>
+                          <span className="font-medium text-gray-600">Processing Time:</span>
+                          <span className="ml-2 text-gray-800">
+                            {Math.round(selectedCV.processingDuration / 1000)}s
+                          </span>
+                        </div>
+                      )}
+                      {selectedCV.aiProcessingDetails && (
+                        <div>
+                          <span className="font-medium text-gray-600">AI Model:</span>
+                          <span className="ml-2 text-gray-800">
+                            {selectedCV.aiProcessingDetails.modelUsed}
                           </span>
                         </div>
                       )}
@@ -430,91 +368,103 @@ export default function Home() {
                 {selectedCV.status === 'completed' ? (
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                     {/* Preview Card */}
-                    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                      <div className="bg-gradient-to-r from-emerald-500 to-teal-600 px-6 py-4">
+                    <div className="card">
+                      <div className="card-header bg-gradient-to-r from-blue-500 to-indigo-600">
                         <h3 className="text-lg font-bold text-white flex items-center">
-                          <Eye className="w-5 h-5 mr-2" />
-                          Preview
+                          <Eye className="w-5 h-5 mr-2" /> EHS Formatted Preview
                         </h3>
                       </div>
-                      <div className="p-6">
+                      <div className="card-content">
                         <CVPreview cv={selectedCV} />
                       </div>
                     </div>
-                    
+
                     {/* Editor Card */}
-                    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                      <div className="bg-gradient-to-r from-blue-500 to-purple-600 px-6 py-4">
+                    <div className="card">
+                      <div className="card-header bg-gradient-to-r from-emerald-500 to-teal-600">
                         <h3 className="text-lg font-bold text-white flex items-center">
-                          <Edit3 className="w-5 h-5 mr-2" />
-                          Edit
+                          <Edit3 className="w-5 h-5 mr-2" /> Edit CV Content
                         </h3>
                       </div>
-                      <div className="p-6">
-                        <CVEditor 
-                          cv={selectedCV}
-                          onUpdate={handleCVUpdate}
-                        />
+                      <div className="card-content">
+                        <CVEditor cv={selectedCV} onUpdate={handleCVUpdate} />
                       </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                    <div className="text-center py-16">
-                      {selectedCV.status === 'processing' ? (
-                        <>
-                          <div className="w-20 h-20 bg-gradient-to-br from-amber-100 to-orange-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-amber-500"></div>
+                  <div className="card">
+                    <div className="card-content">
+                      {selectedCV.status === 'processing' && (
+                        <div className="text-center py-12">
+                          <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                            <div className="w-8 h-8 border-4 border-white border-t-transparent rounded-full animate-spin"></div>
                           </div>
-                          <h3 className="text-2xl font-bold text-gray-800 mb-3">Processing CV...</h3>
-                          <p className="text-gray-600 text-lg">Our AI is transforming your CV into a professional format</p>
-                          <div className="mt-6 inline-flex items-center px-6 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-lg font-medium">
-                            <Clock className="w-5 h-5 mr-2" />
-                            Please wait...
+                          <h3 className="text-xl font-semibold text-gray-800 mb-2">Processing Your CV...</h3>
+                          <p className="text-gray-600 mb-4">Our AI is analyzing and transforming your document</p>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div className="bg-gradient-to-r from-blue-500 to-purple-600 h-3 rounded-full animate-pulse"></div>
                           </div>
-                        </>
-                      ) : selectedCV.status === 'error' ? (
-                        <>
-                          <div className="w-20 h-20 bg-gradient-to-br from-red-100 to-pink-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <AlertCircle className="w-12 h-12 text-red-500" />
+                          <p className="text-sm text-gray-500 mt-2">This may take a few moments</p>
+                        </div>
+                      )}
+
+                      {selectedCV.status === 'error' && (
+                        <div className="text-center py-12">
+                          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <AlertCircle className="w-8 h-8 text-red-500" />
                           </div>
-                          <h3 className="text-2xl font-bold text-red-800 mb-3">Processing Failed</h3>
-                          <p className="text-red-600 text-lg mb-6">There was an error processing your CV</p>
-                          <button className="px-6 py-3 bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 text-white rounded-lg font-medium transition-all duration-200">
+                          <h3 className="text-xl font-semibold text-gray-800 mb-2">Processing Failed</h3>
+                          <p className="text-gray-600 mb-4">There was an error processing your CV</p>
+                          {selectedCV.errors && selectedCV.errors.length > 0 && (
+                            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-left">
+                              <p className="font-medium text-red-800 mb-2">Error Details:</p>
+                              <ul className="text-sm text-red-700 space-y-1">
+                                {selectedCV.errors.map((error, index) => (
+                                  <li key={index}>• {error}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          <button
+                            onClick={() => window.location.reload()}
+                            className="btn-primary mt-4"
+                          >
                             Try Again
                           </button>
-                        </>
-                      ) : (
-                        <>
-                          <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <Clock className="w-12 h-12 text-blue-500" />
+                        </div>
+                      )}
+
+                      {selectedCV.status === 'uploaded' && (
+                        <div className="text-center py-12">
+                          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Upload className="w-8 h-8 text-blue-500" />
                           </div>
-                          <h3 className="text-2xl font-bold text-blue-800 mb-3">Upload Complete</h3>
-                          <p className="text-blue-600 text-lg">Your CV is queued for AI processing</p>
-                        </>
+                          <h3 className="text-xl font-semibold text-gray-800 mb-2">CV Uploaded Successfully</h3>
+                          <p className="text-gray-600">Your CV is queued for AI processing</p>
+                        </div>
                       )}
                     </div>
                   </div>
                 )}
               </div>
             ) : (
-              <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
-                <div className="text-center py-20">
-                  <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                    <FileText className="w-12 h-12 text-gray-400" />
+              <div className="card">
+                <div className="card-content text-center py-16">
+                  <div className="w-20 h-20 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                    <FileText className="w-10 h-10 text-gray-400" />
                   </div>
-                  <h3 className="text-2xl font-bold text-gray-800 mb-3">No CV Selected</h3>
-                  <p className="text-gray-600 text-lg mb-6">Select a CV from the list to view and edit it</p>
-                  <div className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-lg font-medium">
-                    <ArrowRight className="w-5 h-5 mr-2" />
-                    Choose a CV
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">No CV Selected</h3>
+                  <p className="text-gray-600 mb-6">Select a CV from the list to view and edit</p>
+                  <div className="flex items-center justify-center text-sm text-gray-500">
+                    <ArrowRight className="w-4 h-4 mr-2" />
+                    <span>Upload a CV to get started</span>
                   </div>
                 </div>
               </div>
             )}
           </div>
         </div>
-      </div>
+      </main>
     </div>
   )
 }

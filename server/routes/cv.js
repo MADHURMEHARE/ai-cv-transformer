@@ -1,8 +1,8 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
-const CV = require('../models/CV');
+const fs = require('fs').promises;
+const CV = require('../models/cv');
 const { processFile } = require('../services/fileProcessor');
 const { transformCVWithAI } = require('../services/aiService');
 
@@ -10,12 +10,14 @@ const router = express.Router();
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const uploadDir = 'uploads/';
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
+  destination: async (req, file, cb) => {
+    const uploadDir = path.join(__dirname, '../uploads');
+    try {
+      await fs.mkdir(uploadDir, { recursive: true });
+      cb(null, uploadDir);
+    } catch (error) {
+      cb(error);
     }
-    cb(null, uploadDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -24,57 +26,29 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ 
-  storage: storage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+  storage,
+  limits: {
+    fileSize: parseInt(process.env.MAX_FILE_SIZE) || 10 * 1024 * 1024 // 10MB default
+  },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = [
-      'application/pdf',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/vnd.ms-excel',
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-    ];
-    if (allowedTypes.includes(file.mimetype)) {
+    const allowedTypes = ['.pdf', '.docx', '.xlsx', '.xls'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowedTypes.includes(ext)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only PDF, DOCX, and Excel files are allowed.'), false);
+      cb(new Error('Invalid file type. Only PDF, DOCX, and Excel files are allowed.'));
     }
   }
 });
 
-// Upload and process CV
-router.post('/upload', upload.single('cv'), async (req, res) => {
+// Get all CVs
+router.get('/', async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-
-    const startTime = Date.now();
-    
-    // Create CV record
-    const cv = new CV({
-      originalFileName: req.file.originalname,
-      originalFileType: path.extname(req.file.originalname).substring(1).toLowerCase(),
-      originalFilePath: req.file.path,
-      fileSize: req.file.size,
-      sessionId: req.body.sessionId || 'anonymous',
-      status: 'uploaded'
-    });
-
-    await cv.save();
-
-    // Process file asynchronously
-    processFileAsync(cv._id, req.file.path, req.file.originalname);
-
-    res.json({
-      success: true,
-      cvId: cv._id,
-      message: 'File uploaded successfully. Processing started.',
-      status: 'uploaded'
-    });
-
+    const cvs = await CV.find().sort({ uploadedAt: -1 });
+    res.json(cvs);
   } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ error: 'Failed to upload file' });
+    console.error('Error fetching CVs:', error);
+    res.status(500).json({ error: 'Failed to fetch CVs' });
   }
 });
 
@@ -87,41 +61,57 @@ router.get('/:id', async (req, res) => {
     }
     res.json(cv);
   } catch (error) {
-    console.error('Get CV error:', error);
-    res.status(500).json({ error: 'Failed to retrieve CV' });
+    console.error('Error fetching CV:', error);
+    res.status(500).json({ error: 'Failed to fetch CV' });
   }
 });
 
-// Get all CVs for a session
-router.get('/session/:sessionId', async (req, res) => {
+// Upload new CV
+router.post('/upload', upload.single('cv'), async (req, res) => {
   try {
-    const cvs = await CV.find({ sessionId: req.params.sessionId })
-      .sort({ uploadedAt: -1 })
-      .select('originalFileName status uploadedAt transformedData.header.name');
-    res.json(cvs);
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    console.log('File upload received:', req.file.originalname);
+    
+    const cv = new CV({
+      originalName: req.file.originalname,
+      originalFileType: path.extname(req.file.originalname).toLowerCase(),
+      filePath: req.file.path,
+      status: 'uploaded',
+      uploadedAt: new Date()
+    });
+
+    const savedCV = await cv.save();
+    console.log('CV saved to database:', savedCV._id);
+
+    // Start processing in background
+    processFileAsync(savedCV._id, req.file.path, req.file.originalname);
+
+    res.status(201).json(savedCV);
   } catch (error) {
-    console.error('Get session CVs error:', error);
-    res.status(500).json({ error: 'Failed to retrieve CVs' });
+    console.error('Upload error:', error);
+    res.status(500).json({ error: 'Failed to upload file' });
   }
 });
 
-// Update CV data
+// Update CV
 router.put('/:id', async (req, res) => {
   try {
     const { transformedData } = req.body;
-    const cv = await CV.findById(req.params.id);
     
+    const cv = await CV.findById(req.params.id);
     if (!cv) {
       return res.status(404).json({ error: 'CV not found' });
     }
 
-    cv.transformedData = { ...cv.transformedData, ...transformedData };
-    cv.lastModified = new Date();
-    await cv.save();
+    cv.transformedData = transformedData;
+    const updatedCV = await cv.save();
 
-    res.json({ success: true, cv });
+    res.json(updatedCV);
   } catch (error) {
-    console.error('Update CV error:', error);
+    console.error('Update error:', error);
     res.status(500).json({ error: 'Failed to update CV' });
   }
 });
@@ -135,73 +125,410 @@ router.delete('/:id', async (req, res) => {
     }
 
     // Delete file from filesystem
-    if (fs.existsSync(cv.originalFilePath)) {
-      fs.unlinkSync(cv.originalFilePath);
+    try {
+      await fs.unlink(cv.filePath);
+    } catch (fileError) {
+      console.warn('File not found for deletion:', fileError.message);
     }
 
-    // Delete exported files
-    cv.exportedFiles.forEach(exportFile => {
-      if (fs.existsSync(exportFile.filePath)) {
-        fs.unlinkSync(exportFile.filePath);
-      }
-    });
-
     await CV.findByIdAndDelete(req.params.id);
-    res.json({ success: true, message: 'CV deleted successfully' });
+    res.json({ message: 'CV deleted successfully' });
   } catch (error) {
-    console.error('Delete CV error:', error);
+    console.error('Delete error:', error);
     res.status(500).json({ error: 'Failed to delete CV' });
   }
 });
 
-// Export CV
-router.post('/:id/export', async (req, res) => {
+// Export CV as PDF with EHS formatting
+router.post('/export', async (req, res) => {
   try {
-    const { format } = req.body;
-    const cv = await CV.findById(req.params.id);
+    const { cvId, format, ehsStandards } = req.body;
     
+    if (!cvId) {
+      return res.status(400).json({ error: 'CV ID is required' });
+    }
+
+    const cv = await CV.findById(cvId);
     if (!cv) {
       return res.status(404).json({ error: 'CV not found' });
     }
 
-    if (cv.status !== 'completed') {
-      return res.status(400).json({ error: 'CV processing not completed' });
+    if (!cv.transformedData) {
+      return res.status(400).json({ error: 'CV has not been processed yet' });
     }
 
-    // Generate export file
-    const exportPath = await generateExport(cv, format);
-    
-    // Add export record
-    await cv.addExport(format, exportPath);
-
-    res.json({
-      success: true,
-      downloadUrl: `/api/cv/download/${path.basename(exportPath)}`,
-      message: 'Export generated successfully'
-    });
-
+    if (format === 'pdf') {
+      // Generate EHS-formatted PDF
+      const pdfBuffer = await generateEHSPDF(cv.transformedData);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${cv.transformedData.header.name || 'CV'} (EHS Formatted).pdf"`);
+      res.send(pdfBuffer);
+    } else {
+      res.status(400).json({ error: 'Unsupported format. Only PDF is supported.' });
+    }
   } catch (error) {
     console.error('Export error:', error);
     res.status(500).json({ error: 'Failed to export CV' });
   }
 });
 
-// Download exported file
-router.get('/download/:filename', (req, res) => {
-  try {
-    const filePath = path.join(__dirname, '../exports', req.params.filename);
-    if (fs.existsSync(filePath)) {
-      res.download(filePath);
-    } else {
-      res.status(404).json({ error: 'File not found' });
-    }
-  } catch (error) {
-    console.error('Download error:', error);
-    res.status(500).json({ error: 'Failed to download file' });
-  }
-});
+// Generate EHS-formatted PDF
+async function generateEHSPDF(transformedData) {
+  // For now, we'll create a simple HTML representation that can be converted to PDF
+  // In a production environment, you'd use a proper PDF library like PDFKit or Puppeteer
+  
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>EHS Formatted CV</title>
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Palatino+Linotype:wght@400;700&display=swap');
+        
+        body {
+          font-family: 'Palatino Linotype', Palatino, serif;
+          margin: 0;
+          padding: 40px;
+          line-height: 1.6;
+          color: #333;
+          background: white;
+        }
+        
+        .header {
+          text-align: center;
+          margin-bottom: 40px;
+          border-bottom: 3px solid #2563eb;
+          padding-bottom: 20px;
+        }
+        
+        .name {
+          font-size: 36px;
+          font-weight: bold;
+          color: #1e40af;
+          margin-bottom: 10px;
+        }
+        
+        .title {
+          font-size: 24px;
+          color: #374151;
+          margin-bottom: 20px;
+        }
+        
+        .photo-placeholder {
+          width: 4.7cm;
+          height: 4.7cm;
+          border: 2px solid #d1d5db;
+          border-radius: 8px;
+          margin: 0 auto 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: #f9fafb;
+          color: #6b7280;
+          font-size: 12px;
+          text-align: center;
+        }
+        
+        .contact-info {
+          display: flex;
+          justify-content: center;
+          gap: 30px;
+          flex-wrap: wrap;
+          font-size: 14px;
+          color: #6b7280;
+        }
+        
+        .section {
+          margin-bottom: 30px;
+        }
+        
+        .section-title {
+          font-size: 20px;
+          font-weight: bold;
+          color: #1e40af;
+          border-bottom: 2px solid #dbeafe;
+          padding-bottom: 8px;
+          margin-bottom: 20px;
+        }
+        
+        .personal-details {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 20px;
+          margin-bottom: 20px;
+        }
+        
+        .detail-item {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        
+        .detail-label {
+          font-weight: bold;
+          color: #374151;
+          min-width: 120px;
+        }
+        
+        .profile {
+          font-size: 16px;
+          line-height: 1.8;
+          color: #374151;
+          background: #f8fafc;
+          padding: 20px;
+          border-radius: 8px;
+          border-left: 4px solid #2563eb;
+        }
+        
+        .experience-item {
+          margin-bottom: 25px;
+          padding-left: 20px;
+          border-left: 3px solid #dbeafe;
+        }
+        
+        .company {
+          font-size: 18px;
+          font-weight: bold;
+          color: #1e40af;
+          margin-bottom: 5px;
+        }
+        
+        .position {
+          font-size: 16px;
+          font-weight: bold;
+          color: #374151;
+          margin-bottom: 5px;
+        }
+        
+        .duration {
+          font-size: 14px;
+          color: #6b7280;
+          margin-bottom: 10px;
+          background: #f1f5f9;
+          padding: 4px 12px;
+          border-radius: 20px;
+          display: inline-block;
+        }
+        
+        .responsibilities {
+          list-style: none;
+          padding-left: 0;
+        }
+        
+        .responsibilities li {
+          position: relative;
+          padding-left: 20px;
+          margin-bottom: 8px;
+          line-height: 1.6;
+        }
+        
+        .responsibilities li:before {
+          content: "•";
+          position: absolute;
+          left: 0;
+          color: #2563eb;
+          font-weight: bold;
+        }
+        
+        .education-item {
+          background: #f8fafc;
+          padding: 15px;
+          border-radius: 8px;
+          margin-bottom: 15px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        
+        .education-info h4 {
+          font-size: 16px;
+          font-weight: bold;
+          color: #374151;
+          margin: 0 0 5px 0;
+        }
+        
+        .education-info p {
+          margin: 0;
+          color: #6b7280;
+        }
+        
+        .education-year {
+          background: #dbeafe;
+          color: #1e40af;
+          padding: 6px 12px;
+          border-radius: 20px;
+          font-size: 14px;
+          font-weight: bold;
+        }
+        
+        .skills-container, .interests-container {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        
+        .skill-tag, .interest-tag {
+          background: linear-gradient(135deg, #dbeafe, #e0e7ff);
+          color: #1e40af;
+          padding: 8px 16px;
+          border-radius: 20px;
+          font-size: 14px;
+          font-weight: 500;
+          border: 1px solid #bfdbfe;
+        }
+        
+        .ehs-notice {
+          text-align: center;
+          margin-top: 40px;
+          padding: 20px;
+          background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+          border-radius: 8px;
+          border: 2px solid #0ea5e9;
+        }
+        
+        .ehs-notice h3 {
+          color: #0c4a6e;
+          margin: 0 0 10px 0;
+          font-size: 18px;
+        }
+        
+        .ehs-standards {
+          display: flex;
+          justify-content: center;
+          gap: 20px;
+          flex-wrap: wrap;
+          font-size: 12px;
+          color: #0c4a6e;
+        }
+        
+        .standard-item {
+          display: flex;
+          align-items: center;
+          gap: 5px;
+        }
+        
+        .standard-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: #0ea5e9;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div class="name">${transformedData.header.name || 'Professional Name'}</div>
+        <div class="title">${transformedData.header.jobTitle || 'Professional Title'}</div>
+        ${transformedData.header.photoUrl ? 
+          `<img src="${transformedData.header.photoUrl}" alt="Professional Photo" style="width: 4.7cm; height: 4.7cm; object-fit: cover; border-radius: 8px;">` :
+          `<div class="photo-placeholder">Professional Photo<br/>4.7cm × 4.7cm</div>`
+        }
+        <div class="contact-info">
+          ${transformedData.personalDetails.contactInfo.email ? `<span>📧 ${transformedData.personalDetails.contactInfo.email}</span>` : ''}
+          ${transformedData.personalDetails.contactInfo.phone ? `<span>📱 ${transformedData.personalDetails.contactInfo.phone}</span>` : ''}
+          ${transformedData.personalDetails.contactInfo.address ? `<span>📍 ${transformedData.personalDetails.contactInfo.address}</span>` : ''}
+        </div>
+      </div>
 
-// Async file processing function
+      ${(transformedData.personalDetails.nationality || transformedData.personalDetails.languages.length > 0 || transformedData.personalDetails.dateOfBirth || transformedData.personalDetails.maritalStatus) ? `
+        <div class="section">
+          <div class="section-title">Personal Details</div>
+          <div class="personal-details">
+            ${transformedData.personalDetails.nationality ? `<div class="detail-item"><span class="detail-label">Nationality:</span> <span>${transformedData.personalDetails.nationality}</span></div>` : ''}
+            ${transformedData.personalDetails.languages.length > 0 ? `<div class="detail-item"><span class="detail-label">Languages:</span> <span>${transformedData.personalDetails.languages.join(', ')}</span></div>` : ''}
+            ${transformedData.personalDetails.dateOfBirth ? `<div class="detail-item"><span class="detail-label">Date of Birth:</span> <span>${transformedData.personalDetails.dateOfBirth}</span></div>` : ''}
+            ${transformedData.personalDetails.maritalStatus ? `<div class="detail-item"><span class="detail-label">Marital Status:</span> <span>${transformedData.personalDetails.maritalStatus}</span></div>` : ''}
+          </div>
+        </div>
+      ` : ''}
+
+      ${transformedData.profile ? `
+        <div class="section">
+          <div class="section-title">Professional Profile</div>
+          <div class="profile">${transformedData.profile}</div>
+        </div>
+      ` : ''}
+
+      ${transformedData.experience.length > 0 ? `
+        <div class="section">
+          <div class="section-title">Professional Experience</div>
+          ${transformedData.experience.map(exp => `
+            <div class="experience-item">
+              <div class="company">${exp.company}</div>
+              <div class="position">${exp.position}</div>
+              <div class="duration">${exp.duration}</div>
+              ${exp.responsibilities.length > 0 ? `
+                <ul class="responsibilities">
+                  ${exp.responsibilities.map(resp => `<li>${resp}</li>`).join('')}
+                </ul>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${transformedData.education.length > 0 ? `
+        <div class="section">
+          <div class="section-title">Education</div>
+          ${transformedData.education.map(edu => `
+            <div class="education-item">
+              <div class="education-info">
+                <h4>${edu.degree} in ${edu.field}</h4>
+                <p>${edu.institution}</p>
+              </div>
+              <div class="education-year">${edu.year}</div>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
+
+      ${transformedData.keySkills.length > 0 ? `
+        <div class="section">
+          <div class="section-title">Key Skills</div>
+          <div class="skills-container">
+            ${transformedData.keySkills.map(skill => `<span class="skill-tag">${skill}</span>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      ${transformedData.interests.length > 0 ? `
+        <div class="section">
+          <div class="section-title">Professional Interests</div>
+          <div class="interests-container">
+            ${transformedData.interests.map(interest => `<span class="interest-tag">${interest}</span>`).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <div class="ehs-notice">
+        <h3>✓ EHS Formatting Standards Applied</h3>
+        <div class="ehs-standards">
+          <div class="standard-item">
+            <div class="standard-dot"></div>
+            <span>Palatino Linotype Font</span>
+          </div>
+          <div class="standard-item">
+            <div class="standard-dot"></div>
+            <span>Professional Layout</span>
+          </div>
+          <div class="standard-item">
+            <div class="standard-dot"></div>
+            <span>EHS Standards</span>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  // For now, return the HTML content
+  // In production, you would convert this to PDF using a library like Puppeteer
+  return Buffer.from(htmlContent, 'utf8');
+}
+
+// Background processing function
 async function processFileAsync(cvId, filePath, originalName) {
   try {
     console.log(`Starting file processing for CV ID: ${cvId}`);
@@ -213,29 +540,23 @@ async function processFileAsync(cvId, filePath, originalName) {
       console.error(`CV not found for ID: ${cvId}`);
       return;
     }
-
-    // Update status to processing
     console.log('Updating CV status to processing...');
     await cv.updateStatus('processing');
 
-    // Extract text from file
     console.log('Extracting text from file...');
     const extractedText = await processFile(filePath, originalName);
     console.log(`Text extraction completed. Length: ${extractedText.length}`);
     console.log('Text preview:', extractedText.substring(0, 200) + '...');
     
-    // Update CV with extracted text
     cv.extractedText = extractedText;
     await cv.save();
     console.log('CV updated with extracted text');
 
-    // Transform with AI
     console.log('Starting AI transformation...');
     const transformedData = await transformCVWithAI(extractedText);
     console.log('AI transformation completed successfully');
     console.log('Transformed data structure:', Object.keys(transformedData));
     
-    // Update CV with transformed data
     cv.transformedData = transformedData;
     cv.status = 'completed';
     cv.processedAt = new Date();
@@ -253,25 +574,6 @@ async function processFileAsync(cvId, filePath, originalName) {
       await cv.updateStatus('error', { errors: [error.message] });
     }
   }
-}
-
-// Generate export file (placeholder - implement based on format)
-async function generateExport(cv, format) {
-  // This would generate the actual export file
-  // For now, return a placeholder path
-  const exportDir = path.join(__dirname, '../exports');
-  if (!fs.existsSync(exportDir)) {
-    fs.mkdirSync(exportDir, { recursive: true });
-  }
-  
-  const filename = `${cv.transformedData.header.name || 'cv'}-${Date.now()}.${format}`;
-  const exportPath = path.join(exportDir, filename);
-  
-  // Create a simple export file (implement proper formatting)
-  const content = JSON.stringify(cv.transformedData, null, 2);
-  fs.writeFileSync(exportPath, content);
-  
-  return exportPath;
 }
 
 module.exports = router;
