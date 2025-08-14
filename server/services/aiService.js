@@ -13,6 +13,15 @@ const anthropic = process.env.ANTHROPIC_API_KEY ? new Anthropic({
 
 const genAI = process.env.GOOGLE_API_KEY ? new GoogleGenerativeAI(process.env.GOOGLE_API_KEY) : null;
 
+// Debug logging
+console.log('AI Service Initialization:');
+console.log('OpenAI API Key:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set');
+console.log('Anthropic API Key:', process.env.ANTHROPIC_API_KEY ? 'Set' : 'Not set');
+console.log('Google API Key:', process.env.GOOGLE_API_KEY ? 'Set' : 'Not set');
+console.log('OpenAI Client:', openai ? 'Initialized' : 'Not initialized');
+console.log('Anthropic Client:', anthropic ? 'Initialized' : 'Not initialized');
+console.log('Google Client:', genAI ? 'Initialized' : 'Not initialized');
+
 /**
  * Transform CV content using AI with multiple model fallback
  * @param {string} text - Raw CV text
@@ -20,6 +29,9 @@ const genAI = process.env.GOOGLE_API_KEY ? new GoogleGenerativeAI(process.env.GO
  * @returns {Promise<Object>} - Transformed CV data
  */
 async function transformCVWithAI(text, preferences = {}) {
+  console.log('transformCVWithAI called with text length:', text.length);
+  console.log('Text preview:', text.substring(0, 200) + '...');
+  
   const startTime = Date.now();
   let modelUsed = 'unknown';
   let errors = [];
@@ -27,9 +39,11 @@ async function transformCVWithAI(text, preferences = {}) {
   try {
     // Try OpenAI first (most reliable for structured output)
     if (openai) {
+      console.log('Attempting OpenAI transformation...');
       try {
         const result = await transformWithOpenAI(text, preferences);
         modelUsed = 'openai';
+        console.log('OpenAI transformation successful');
         return {
           ...result,
           aiProcessingDetails: {
@@ -42,13 +56,17 @@ async function transformCVWithAI(text, preferences = {}) {
         errors.push(`OpenAI failed: ${error.message}`);
         console.warn('OpenAI failed, trying fallback:', error.message);
       }
+    } else {
+      console.log('OpenAI client not available');
     }
 
     // Try Anthropic as second choice
     if (anthropic) {
+      console.log('Attempting Anthropic transformation...');
       try {
         const result = await transformWithAnthropic(text, preferences);
         modelUsed = 'anthropic';
+        console.log('Anthropic transformation successful');
         return {
           ...result,
           aiProcessingDetails: {
@@ -61,13 +79,17 @@ async function transformCVWithAI(text, preferences = {}) {
         errors.push(`Anthropic failed: ${error.message}`);
         console.warn('Anthropic failed, trying fallback:', error.message);
       }
+    } else {
+      console.log('Anthropic client not available');
     }
 
     // Try Google as third choice
     if (genAI) {
+      console.log('Attempting Google transformation...');
       try {
         const result = await transformWithGoogle(text, preferences);
         modelUsed = 'google';
+        console.log('Google transformation successful');
         return {
           ...result,
           aiProcessingDetails: {
@@ -80,6 +102,8 @@ async function transformCVWithAI(text, preferences = {}) {
         errors.push(`Google failed: ${error.message}`);
         console.warn('Google failed:', error.message);
       }
+    } else {
+      console.log('Google client not available');
     }
 
     // If all AI models fail, use basic parsing
@@ -108,26 +132,33 @@ async function transformCVWithAI(text, preferences = {}) {
  * @returns {Promise<Object>} - Transformed CV data
  */
 async function transformWithOpenAI(text, preferences) {
+  console.log('OpenAI transformation started');
   const prompt = createEHSFormattedPrompt(text, preferences);
   
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4",
-    messages: [
-      {
-        role: "system",
-        content: "You are an expert CV transformation specialist. Transform the given CV text according to EHS formatting standards. Return only valid JSON."
-      },
-      {
-        role: "user",
-        content: prompt
-      }
-    ],
-    temperature: 0.3,
-    max_tokens: 4000
-  });
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert CV transformation specialist. Transform the given CV text according to EHS formatting standards. Return only valid JSON."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      temperature: 0.3,
+      max_tokens: 4000
+    });
 
-  const response = completion.choices[0].message.content;
-  return parseAIResponse(response);
+    const response = completion.choices[0].message.content;
+    console.log('OpenAI response received, length:', response.length);
+    return parseAIResponse(response);
+  } catch (error) {
+    console.error('OpenAI transformation error:', error);
+    throw error;
+  }
 }
 
 /**
@@ -343,39 +374,102 @@ function applyEHSFormatting(text) {
 /**
  * Basic CV parsing when AI models fail
  * @param {string} text - Raw CV text
- * @returns {Object} - Basic parsed data
+ * @returns {Object} - Basic parsed CV data
  */
 async function basicCVParsing(text) {
-  // Extract basic information using regex patterns
-  const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
-  const phoneRegex = /(\+\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}/;
+  console.log('Using basic CV parsing fallback');
   
-  const email = text.match(emailRegex)?.[0] || '';
-  const phone = text.match(phoneRegex)?.[0] || '';
-  
-  // Simple name extraction (first line that looks like a name)
-  const lines = text.split('\n').filter(line => line.trim().length > 0);
-  const name = lines[0] || 'Unknown';
-  
-  return {
-    header: {
-      name: name.trim(),
-      jobTitle: 'Professional',
-      photoUrl: ''
-    },
-    personalDetails: {
-      nationality: '',
-      languages: [],
-      dateOfBirth: '',
-      maritalStatus: '',
-      contactInfo: { email, phone, address: '' }
-    },
-    profile: 'Professional CV content extracted and formatted.',
-    experience: [],
-    education: [],
-    keySkills: [],
-    interests: []
-  };
+  try {
+    // Simple text extraction and formatting
+    const lines = text.split('\n').filter(line => line.trim());
+    
+    // Extract basic information
+    const name = lines[0] || 'Unknown Name';
+    const email = lines.find(line => line.includes('@')) || '';
+    const phone = lines.find(line => /\d{3}[-.]?\d{3}[-.]?\d{4}/.test(line)) || '';
+    
+    // Extract experience (look for common patterns)
+    const experienceLines = lines.filter(line => 
+      line.toLowerCase().includes('experience') || 
+      line.toLowerCase().includes('work') ||
+      line.toLowerCase().includes('employment')
+    );
+    
+    // Extract education
+    const educationLines = lines.filter(line => 
+      line.toLowerCase().includes('education') || 
+      line.toLowerCase().includes('degree') ||
+      line.toLowerCase().includes('university') ||
+      line.toLowerCase().includes('college')
+    );
+    
+    // Extract skills
+    const skillsLines = lines.filter(line => 
+      line.toLowerCase().includes('skill') || 
+      line.toLowerCase().includes('technology') ||
+      line.toLowerCase().includes('programming')
+    );
+    
+    return {
+      header: {
+        name: name,
+        jobTitle: 'Professional',
+        photoUrl: ''
+      },
+      personalDetails: {
+        nationality: '',
+        languages: ['English'],
+        dateOfBirth: '',
+        maritalStatus: '',
+        contactInfo: {
+          email: email,
+          phone: phone,
+          address: ''
+        }
+      },
+      profile: 'Professional with experience in various fields.',
+      experience: experienceLines.length > 0 ? [{
+        company: 'Company Name',
+        position: 'Position Title',
+        duration: 'Duration',
+        responsibilities: ['Responsibility 1', 'Responsibility 2']
+      }] : [],
+      education: educationLines.length > 0 ? [{
+        institution: 'Institution Name',
+        degree: 'Degree',
+        field: 'Field of Study',
+        year: 'Year'
+      }] : [],
+      keySkills: skillsLines.length > 0 ? ['Skill 1', 'Skill 2', 'Skill 3'] : ['Communication', 'Problem Solving', 'Teamwork'],
+      interests: ['Professional Development', 'Technology', 'Innovation']
+    };
+  } catch (error) {
+    console.error('Basic parsing failed:', error);
+    // Return minimal structure
+    return {
+      header: {
+        name: 'Unknown Name',
+        jobTitle: 'Professional',
+        photoUrl: ''
+      },
+      personalDetails: {
+        nationality: '',
+        languages: ['English'],
+        dateOfBirth: '',
+        maritalStatus: '',
+        contactInfo: {
+          email: '',
+          phone: '',
+          address: ''
+        }
+      },
+      profile: 'Professional with experience in various fields.',
+      experience: [],
+      education: [],
+      keySkills: ['Communication', 'Problem Solving', 'Teamwork'],
+      interests: ['Professional Development', 'Technology', 'Innovation']
+    };
+  }
 }
 
 /**

@@ -204,21 +204,36 @@ router.get('/download/:filename', (req, res) => {
 // Async file processing function
 async function processFileAsync(cvId, filePath, originalName) {
   try {
+    console.log(`Starting file processing for CV ID: ${cvId}`);
+    console.log(`File path: ${filePath}`);
+    console.log(`Original name: ${originalName}`);
+    
     const cv = await CV.findById(cvId);
-    if (!cv) return;
+    if (!cv) {
+      console.error(`CV not found for ID: ${cvId}`);
+      return;
+    }
 
     // Update status to processing
+    console.log('Updating CV status to processing...');
     await cv.updateStatus('processing');
 
     // Extract text from file
+    console.log('Extracting text from file...');
     const extractedText = await processFile(filePath, originalName);
+    console.log(`Text extraction completed. Length: ${extractedText.length}`);
+    console.log('Text preview:', extractedText.substring(0, 200) + '...');
     
     // Update CV with extracted text
     cv.extractedText = extractedText;
     await cv.save();
+    console.log('CV updated with extracted text');
 
     // Transform with AI
+    console.log('Starting AI transformation...');
     const transformedData = await transformCVWithAI(extractedText);
+    console.log('AI transformation completed successfully');
+    console.log('Transformed data structure:', Object.keys(transformedData));
     
     // Update CV with transformed data
     cv.transformedData = transformedData;
@@ -226,11 +241,15 @@ async function processFileAsync(cvId, filePath, originalName) {
     cv.processedAt = new Date();
     cv.processingDuration = Date.now() - new Date(cv.uploadedAt).getTime();
     await cv.save();
+    console.log('CV processing completed successfully');
 
   } catch (error) {
     console.error('Processing error:', error);
+    console.error('Error stack:', error.stack);
+    
     const cv = await CV.findById(cvId);
     if (cv) {
+      console.log('Updating CV status to error');
       await cv.updateStatus('error', { errors: [error.message] });
     }
   }
